@@ -1,0 +1,20 @@
+# Ignore virtual environment
+.venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Environment variables
+.env
+
+# SQLite or test databases
+*.sqlite3
+*.db
+
+# IDE/editor config
+.vscode/
+.idea/
+
+# System files
+.DS_Store
