@@ -1,4 +1,6 @@
 # connect to the database
+from dotenv import load_dotenv
+load_dotenv()
 import pymysql # imports the library which allows Python to connect to a MySQL database
 import os # built-in module for accessing en variables (interacting with the operating system)
 from flask import current_app, g # g is Flask object used to store data during a request
@@ -9,7 +11,7 @@ def get_db(): # function that the app can call to get a MySQL connection
         g.db = pymysql.connect(
             host=os.getenv("DB_HOST"), # grabs values from .env file
             user=os.getenv("DB_USER"),
-            passwd=os.getenv("DB_PASSWORD"),
+            password=os.getenv("DB_PASSWORD"),
             db=os.getenv("DB_NAME"),
             cursorclass=pymysql.cursors.DictCursor
         )
