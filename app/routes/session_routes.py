@@ -1,8 +1,10 @@
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, send_file
 from app.db import get_db_connection
 from datetime import datetime
 from typing import Dict, Any
 import logging
+import pandas as pd
+import io
 
 session_bp = Blueprint('sessions', __name__)
 
@@ -118,6 +120,85 @@ def get_session(session_id):
 
     except Exception as e:
         logging.error(f"Error fetching session: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+@session_bp.route('/sessions/export', methods=['GET'])
+def export_sessions():
+    """Export study sessions to Excel file."""
+    try:
+        # TODO: Replace with actual user authentication
+        user_id = 1  # Temporary hardcoded user_id
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT 
+                    id,
+                    topic,
+                    start_time,
+                    end_time,
+                    duration,
+                    notes,
+                    created_at
+                FROM study_sessions 
+                WHERE user_id = %s 
+                ORDER BY start_time DESC
+                """,
+                (user_id,)
+            )
+            sessions = cursor.fetchall()
+
+        if not sessions:
+            return jsonify({"error": "No sessions found"}), 404
+
+        # Convert to pandas DataFrame
+        df = pd.DataFrame(sessions)
+        
+        # Format datetime columns
+        df['start_time'] = pd.to_datetime(df['start_time']).dt.strftime('%Y-%m-%d %H:%M')
+        df['end_time'] = pd.to_datetime(df['end_time']).dt.strftime('%Y-%m-%d %H:%M')
+        df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
+        
+        # Rename columns for better readability
+        df = df.rename(columns={
+            'id': 'Session ID',
+            'topic': 'Topic',
+            'start_time': 'Start Time',
+            'end_time': 'End Time',
+            'duration': 'Duration (minutes)',
+            'notes': 'Notes',
+            'created_at': 'Created At'
+        })
+
+        # Create Excel file in memory
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Study Sessions', index=False)
+            
+            # Auto-adjust columns' width
+            worksheet = writer.sheets['Study Sessions']
+            for idx, col in enumerate(df.columns):
+                max_length = max(
+                    df[col].astype(str).apply(len).max(),
+                    len(col)
+                )
+                worksheet.column_dimensions[chr(65 + idx)].width = max_length + 2
+
+        output.seek(0)
+        
+        # Generate filename with current date
+        filename = f"study_sessions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as e:
+        logging.error(f"Error exporting sessions: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
     
